@@ -1,0 +1,42 @@
+common:
+  lid_topic: "/os1_cloud_node1/points"         # lid_topic: "/velodyne_points"         "/livox/lidar"
+  imu_topic: "/imu/imu"        # imu_topic:  "/handsfree/imu"       "/livox/imu"
+    
+preprocess:
+  lidar_type: 4     # Livox = 1, velodyne = 2, L515 = 3, OUSTER = 4, Hesai = 5
+  scan_line: 16      # scan_line: 64 #livox 6  #velodyne 64
+  blind: 0.01
+  point_filter_num: 1
+  calib_laser: false              # true for KITTI Odometry dataset
+
+mapping:
+  down_sample_size: 0.1 
+  max_iteration: 20
+  max_distance: 200.0 
+  voxel_size: 0.5
+  plannar_threshold: 0.001 
+  update_size_threshold: 5
+  init_plane_threshold: 100
+  sigma_num: 3
+
+noise_model:
+  ranging_cov: 0.02
+  angle_cov: 0.1
+  acc_cov_scale: 1.0
+  gyr_cov_scale: 0.5
+
+imu:
+  imu_en: true
+  extrinsic_T: [ -0.050, 0.000, 0.055 ]
+  extrinsic_R: [ 1, 0, 0,
+                 0, 1, 0,
+                 0, 0, 1 ]
+
+visualization:
+  pub_point_cloud: true
+  dense_map_enable: false
+  pub_point_cloud_skip: false             # publish one points per five points
+
+Result:
+  write_kitti_log: false
+  result_path: "/home/kitt_log.txt"

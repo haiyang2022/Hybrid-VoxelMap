@@ -1,0 +1,13 @@
+<launch>
+  <!-- Launch file for velodyne VLP-32 LiDAR -->
+
+    <arg name="rviz" default="true" />
+
+    <rosparam command="load" file="$(find hybrid_voxel_map)/config/M2DGR.yaml" />
+
+    <node pkg="hybrid_voxel_map" type="voxel_mapping_odom" name="voxel_mapping_odom" output="screen"/>
+    <group if="$(arg rviz)">
+    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find hybrid_voxel_map)/rviz_cfg/voxel_mapping.rviz" />
+    </group>
+
+</launch>
