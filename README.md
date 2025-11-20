@@ -91,6 +91,7 @@ python Inf_scan_ros.py --gpu=0 --scene=outdoor --mapsize=0.5	# for indoor: --sce
 📚 **Citation**
 
 If you find this work useful in your research, please cite our paper:
+```
 @article{HybridVoxelMap2026,
   author={Wu, Haiyang and Vosselman, George and Lehtola, Ville},
   title={Gaussian or Plane? Both: Semantic-Driven Voxel Representation for LiDAR–Inertial Odometry},
@@ -101,3 +102,4 @@ If you find this work useful in your research, please cite our paper:
   pages={161-168},
   doi={10.1109/LRA.2025.3632730},
 }
+```
