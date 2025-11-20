@@ -88,3 +88,16 @@ python Inf_scan_ros.py --gpu=0 --scene=outdoor --mapsize=0.5	# for indoor: --sce
 
 - We use a pre-trained RandLA-Net model for semantic segmentation. We would like to express our special thanks to [RandLA-Net-Pytorch](https://github.com/liuxuexun/RandLA-Net-Pytorch-New) for providing the PyTorch implementation and the pre-trained weights, which we use in our work.
 
+📚 **Citation**
+
+If you find this work useful in your research, please cite our paper:
+@article{HybridVoxelMap2026,
+  author={Wu, Haiyang and Vosselman, George and Lehtola, Ville},
+  title={Gaussian or Plane? Both: Semantic-Driven Voxel Representation for LiDAR–Inertial Odometry},
+  journal={IEEE Robotics and Automation Letters},
+  year={2026},
+  volume={11},
+  number={1},
+  pages={161-168},
+  doi={10.1109/LRA.2025.3632730},
+}
