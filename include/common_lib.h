@@ -9,8 +9,8 @@
 #include <sensor_msgs/Imu.h>
 #include <so3_math.h>
 #include <tf/transform_broadcaster.h>
-#include <voxel_map_plus/Pose6D.h>
-#include <voxel_map_plus/States.h>
+#include <hybrid_voxel_map/Pose6D.h>
+#include <hybrid_voxel_map/States.h>
 
 using namespace std;
 using namespace Eigen;
@@ -25,7 +25,7 @@ using namespace Eigen;
 #define VEC_FROM_ARRAY(v) v[0], v[1], v[2]
 #define MAT_FROM_ARRAY(v) v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8]
 
-typedef voxel_map_plus::Pose6D Pose6D;
+typedef hybrid_voxel_map::Pose6D Pose6D;
 typedef pcl::PointXYZINormal PointType;
 typedef pcl::PointCloud<PointType> PointCloudXYZI;
 typedef vector<PointType, Eigen::aligned_allocator<PointType>> PointVector;

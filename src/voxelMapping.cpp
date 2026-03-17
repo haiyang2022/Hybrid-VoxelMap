@@ -30,7 +30,7 @@
 #include <unistd.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
-#include <voxel_map_plus/States.h>
+#include <hybrid_voxel_map/States.h>
 
 #define INIT_TIME (0.0)
 #define CALIB_ANGLE_COV (0.01)
