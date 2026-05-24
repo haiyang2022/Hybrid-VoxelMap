@@ -22,7 +22,7 @@
 #include <so3_math.h>
 #include <tf/transform_broadcaster.h>
 #include <thread>
-#include <voxel_map_plus/States.h>
+#include <hybrid_voxel_map/States.h>
 
 /// *************Preconfiguration
 
