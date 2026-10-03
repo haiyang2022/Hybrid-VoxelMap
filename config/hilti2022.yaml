@@ -1,0 +1,99 @@
+voxel_mapping_odom:
+  ros__parameters:
+    common:
+      lid_topic: /hybrid/points_imu
+      imu_topic: /alphasense/imu
+      time_offset_lidar_to_imu: 0.0
+      reliable_lidar_qos: true
+      lidar_qos_depth: 512
+      reliable_imu_qos: true
+      imu_qos_depth: 4096
+    preprocess:
+      lidar_type: 5
+      scan_line: 32
+      blind: 0.5
+      point_filter_num: 1
+      calib_laser: false
+    mapping:
+      down_sample_size: 0.3
+      max_iteration: 20
+      max_distance: 100.0
+      voxel_size: 0.5
+      plannar_threshold: 0.001
+      update_size_threshold: 5
+      init_plane_threshold: 100
+      sigma_num: 3
+      abs_residual_gating: true
+      use_step_convergence: true
+      min_iteration: 3
+      converge_translation: 0.001
+      converge_rotation: 0.0001
+      iekf_step_scale: 0.5
+      min_effective_features: 0
+      max_solver_condition: 0.0
+      skip_map_update_on_unstable: false
+      publish_iteration_debug: false
+      semantic_debug: false
+      debug_csv_enable: false
+      gaussian_neighbor_search: true
+      gaussian_uncertainty_gating: true
+    runtime:
+      log_interval: 100
+    noise_model:
+      ranging_cov: 0.02
+      angle_cov: 0.1
+      acc_cov_scale: 1.0
+      gyr_cov_scale: 0.5
+      use_calibrated_imu_noise: true
+      calibrated_gyr_cov_scale: 1.6e-05
+      calibrated_acc_cov_scale: 0.0014
+    imu:
+      imu_en: true
+      use_lidar_constant_velocity: false
+      use_lidar_constant_velocity_deskew: false
+      extrinsic_T:
+      - 0.0
+      - 0.0
+      - 0.0
+      extrinsic_R:
+      - 1.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+    visualization:
+      pub_point_cloud: false
+      dense_map_enable: false
+      pub_point_cloud_skip: 2
+    Result:
+      write_kitti_log: false
+      result_path: ''
+      tum_result_dir: result
+      tum_result_prefix: hilti2022
+      tum_result_path: ''
+      efficiency_path: ''
+    use_sim_time: true
+hilti2022_cloud_bridge:
+  ros__parameters:
+    input_topic: /hesai/pandar
+    output_topic: /hybrid/points_imu
+    blind: 0.5
+    extrinsic_R:
+    - 0.0
+    - -1.0
+    - 0.0
+    - -1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - -1.0
+    extrinsic_T:
+    - -0.001
+    - -0.00855
+    - 0.055
+    counts_path: ''

@@ -38,6 +38,8 @@ static double planer_threshold;
 static double voxel_size;
 static double quater_length;
 static bool use_abs_residual_gating = true;
+static bool gaussian_neighbor_search = true;
+static bool gaussian_uncertainty_gating = true;
 
 /*** Point to Plane Matching Structure ***/
 typedef struct ptpl
@@ -824,7 +826,16 @@ void BuildSingleResidual_NDT(const pointWithCov &pv, const UnionFindNode *curren
     Eigen::Matrix3d Cov_mu = plane.covariance / plane.points_size;
     double mahDistance = std::sqrt(diff.transpose() * invCov * diff);
     double chi_square_threshold = 11.34;
-    if (mahDistance * mahDistance > chi_square_threshold)
+    double gating_distance_squared = mahDistance * mahDistance;
+    if (gaussian_uncertainty_gating)
+    {
+        // Include scan-point uncertainty in the matching gate.
+        const M3D innovation_covariance = plane.covariance + pv.cov;
+        Eigen::LDLT<M3D> innovation_factor(innovation_covariance);
+        if (innovation_factor.info() != Eigen::Success || !innovation_factor.isPositive()) return;
+        gating_distance_squared = diff.dot(innovation_factor.solve(diff));
+    }
+    if (!std::isfinite(gating_distance_squared) || gating_distance_squared > chi_square_threshold)
     {
         is_sucess = false;
         return;
@@ -1004,32 +1015,56 @@ void BuildResidualListOMP(const unordered_map<VOXEL_LOC, UnionFindNode *> &voxel
             {
                 BuildSingleResidual_NDT(pv, currentRootNode_NDT, is_sucess, single_ptpl);
             }
+            if (gaussian_neighbor_search && !is_sucess_plane &&
+                (!has_point_semantic || pv.Semantic_ID == 2))
+            {
+                // Search adjacent Gaussian voxels.
+                for (int dx = -1; dx <= 1; ++dx)
+                for (int dy = -1; dy <= 1; ++dy)
+                for (int dz = -1; dz <= 1; ++dz)
+                {
+                    if (dx == 0 && dy == 0 && dz == 0) continue;
+                    const auto near = voxel_map.find(VOXEL_LOC(position.x + dx,
+                        position.y + dy, position.z + dz));
+                    if (near == voxel_map.end()) continue;
+                    const UnionFindNode *candidate_node = near->second->original_ptr_;
+                    if (!candidate_node->is_NDT) continue;
+                    ptpl candidate;
+                    bool accepted = false;
+                    BuildSingleResidual_NDT(pv, candidate_node, accepted, candidate);
+                    if (accepted && (!is_sucess || candidate.dist < single_ptpl.dist))
+                    {
+                        single_ptpl = candidate;
+                        is_sucess = true;
+                    }
+                }
+            }
             if (!is_sucess && !is_sucess_plane)
             {
                 single_ptpl = ptpl();
                 single_ptpl_plane = ptpl();
                 VOXEL_LOC near_position = position;
-                if (loc_xyz[0] > (currentRootNode->voxel_center_[0] + quater_length))
+                if (pv.point_world[0] > (currentRootNode->voxel_center_[0] + quater_length))
                 {
                     near_position.x = near_position.x + 1;
                 }
-                else if (loc_xyz[0] < (currentRootNode->voxel_center_[0] - quater_length))
+                else if (pv.point_world[0] < (currentRootNode->voxel_center_[0] - quater_length))
                 {
                     near_position.x = near_position.x - 1;
                 }
-                if (loc_xyz[1] > (currentRootNode->voxel_center_[1] + quater_length))
+                if (pv.point_world[1] > (currentRootNode->voxel_center_[1] + quater_length))
                 {
                     near_position.y = near_position.y + 1;
                 }
-                else if (loc_xyz[1] < (currentRootNode->voxel_center_[1] - quater_length))
+                else if (pv.point_world[1] < (currentRootNode->voxel_center_[1] - quater_length))
                 {
                     near_position.y = near_position.y - 1;
                 }
-                if (loc_xyz[2] > (currentRootNode->voxel_center_[2] + quater_length))
+                if (pv.point_world[2] > (currentRootNode->voxel_center_[2] + quater_length))
                 {
                     near_position.z = near_position.z + 1;
                 }
-                else if (loc_xyz[2] < (currentRootNode->voxel_center_[2] - quater_length))
+                else if (pv.point_world[2] < (currentRootNode->voxel_center_[2] - quater_length))
                 {
                     near_position.z = near_position.z - 1;
                 }

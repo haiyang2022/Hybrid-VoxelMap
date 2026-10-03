@@ -14,7 +14,7 @@
 2. A unified scan-matching model combines point-to-plane and probabilistic constraints.
 3. The ROS 2 version supports KITTI / SemanticKITTI-style Velodyne data and Livox Mid-70 + IMU data.
 
-This branch is the ROS 2 Humble port tested on Ubuntu 22.04 and Jetson AGX Orin.
+This ROS 2 port has been adapted and build-verified with ROS 2 Jazzy on Ubuntu 24.04.
 
 <div align="center">
     <img src="pics/system_overview.jpg" width = 100% >
@@ -27,15 +27,21 @@ This branch is the ROS 2 Humble port tested on Ubuntu 22.04 and Jetson AGX Orin.
 
 [Gaussian or Plane? Both: Semantic-Driven Voxel Representation for LiDAR-Inertial Odometry](https://ieeexplore.ieee.org/document/11247866)
 
+## Updates
+
+- **2026-10-03**: Updated to Ubuntu 24.04 / ROS 2 Jazzy (`ros2-jazzy`). Fixed IMU propagation, covariance frames and voxel neighbor selection, and improved ROS 2 shutdown. Added Hilti-Oxford 2022 support and configurable 26-neighbor Gaussian search and calibrated IMU noise, both enabled by default.
+- **2026-05-24**: Released the ROS 2 Humble version.
+- **2025-11-18**: Released the ROS 1 Noetic code.
+
 ## 1. Prerequisites
 
 ### 1.1 ROS 2
 
-The ROS 2 version is tested with:
+The Jazzy port was build-verified with:
 
 ```text
-Ubuntu 22.04
-ROS 2 Humble
+Ubuntu 24.04
+ROS 2 Jazzy
 PCL >= 1.12
 Eigen >= 3.3
 ```
@@ -45,32 +51,41 @@ Install common dependencies:
 ```bash
 sudo apt update
 sudo apt install -y \
-  ros-humble-desktop \
-  ros-humble-pcl-conversions \
-  ros-humble-tf2 \
-  ros-humble-tf2-geometry-msgs \
-  ros-humble-tf2-ros \
-  ros-humble-rosbag2 \
-  ros-humble-rviz2 \
+  ros-jazzy-desktop \
+  ros-jazzy-pcl-conversions \
+  ros-jazzy-tf2 \
+  ros-jazzy-tf2-geometry-msgs \
+  ros-jazzy-tf2-ros \
+  ros-jazzy-rosbag2 \
+  ros-jazzy-rviz2 \
+  python3-colcon-common-extensions \
   libpcl-dev \
-  libeigen3-dev \
-  libomp-dev
+  libeigen3-dev
 ```
 
 ### 1.2 Livox Support
 
-Livox datasets such as MCD Mid-70 require `livox_ros_driver2` because the LiDAR input uses `livox_ros_driver2/msg/CustomMsg`.
+Livox datasets such as MCD Mid-70 require Livox-SDK2 and `livox_ros_driver2` because the LiDAR input uses `livox_ros_driver2/msg/CustomMsg`. These steps install the SDK into the user's home directory, so they do not need system-wide write access.
 
 ```bash
+git clone https://github.com/Livox-SDK/Livox-SDK2.git ~/Livox-SDK2
+cmake -S ~/Livox-SDK2 -B ~/Livox-SDK2/build \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$HOME/.local
+cmake --build ~/Livox-SDK2/build --parallel 8
+cmake --install ~/Livox-SDK2/build
+
 mkdir -p ~/ros2_ws/src
 cd ~/ros2_ws/src
 git clone https://github.com/Livox-SDK/livox_ros_driver2.git
 cd livox_ros_driver2
-./build.sh humble
+source /opt/ros/jazzy/setup.bash
+export CMAKE_PREFIX_PATH="$HOME/.local${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+./build.sh jazzy
 source ~/ros2_ws/install/setup.bash
+export LD_LIBRARY_PATH="$HOME/.local/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 ```
 
-If `livox_ros_driver2` is not found when building Hybrid-VoxelMap, the package can still build, but Livox `CustomMsg` input will be disabled.
+If `livox_ros_driver2` is not found when building Hybrid-VoxelMap, the package can still build, but Livox `CustomMsg` input and its related bridge executables will be disabled.
 
 ## 2. Build
 
@@ -79,10 +94,10 @@ Create a ROS 2 workspace and build with `colcon`:
 ```bash
 mkdir -p ~/slam_ws/src
 cd ~/slam_ws/src
-git clone https://github.com/haiyang2022/Hybrid-VoxelMap.git
+git clone -b ros2-jazzy https://github.com/haiyang2022/Hybrid-VoxelMap.git
 
 cd ~/slam_ws
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 [ -f ~/ros2_ws/install/setup.bash ] && source ~/ros2_ws/install/setup.bash
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
@@ -150,7 +165,7 @@ KITTI does not provide IMU in the odometry benchmark. In this ROS 2 version, `im
 Terminal 1, start Hybrid-VoxelMap:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 [ -f ~/ros2_ws/install/setup.bash ] && source ~/ros2_ws/install/setup.bash
 source ~/slam_ws/install/setup.bash
 
@@ -169,7 +184,7 @@ ros2 run hybrid_voxel_map voxel_mapping_odom --ros-args \
 Terminal 2, play the bag:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 ros2 bag play /path/to/kitti08_raw_pointcloud2_ros2 --read-ahead-queue-size 10000
 ```
 
@@ -189,7 +204,7 @@ This bag contains the Livox Mid-70 scan transformed into the VN100 body frame. T
 Terminal 1, start Hybrid-VoxelMap:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 [ -f ~/ros2_ws/install/setup.bash ] && source ~/ros2_ws/install/setup.bash
 source ~/slam_ws/install/setup.bash
 
@@ -204,7 +219,7 @@ ros2 run hybrid_voxel_map voxel_mapping_odom --ros-args \
 Terminal 2, play the bag:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 [ -f ~/ros2_ws/install/setup.bash ] && source ~/ros2_ws/install/setup.bash
 ros2 bag play /path/to/ntu_day_10_mid70_vn100_body_ros2 --read-ahead-queue-size 10000
 ```
@@ -216,7 +231,7 @@ In this example, an external semantic segmentation node subscribes to `/velodyne
 Terminal 1, start Hybrid-VoxelMap:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 [ -f ~/ros2_ws/install/setup.bash ] && source ~/ros2_ws/install/setup.bash
 source ~/slam_ws/install/setup.bash
 
@@ -235,7 +250,7 @@ ros2 run hybrid_voxel_map voxel_mapping_odom --ros-args \
 Terminal 2, start your semantic segmentation method:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 
 # Replace this with your own segmentation command.
 # Required behavior:
@@ -251,7 +266,7 @@ ros2 run your_semantic_package your_semantic_node --ros-args \
 Terminal 3, start the generic semantic adapter:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 [ -f ~/ros2_ws/install/setup.bash ] && source ~/ros2_ws/install/setup.bash
 source ~/slam_ws/install/setup.bash
 
@@ -273,7 +288,7 @@ The `--plane-labels` and `--object-labels` above assume SemanticKITTI learning I
 Terminal 4, play the KITTI bag:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 ros2 bag play /path/to/kitti08_raw_pointcloud2_ros2 --read-ahead-queue-size 10000
 ```
 
@@ -293,7 +308,7 @@ This bag still contains only raw LiDAR and IMU data. Semantic labels are not sto
 Terminal 1, start Hybrid-VoxelMap:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 [ -f ~/ros2_ws/install/setup.bash ] && source ~/ros2_ws/install/setup.bash
 source ~/slam_ws/install/setup.bash
 
@@ -309,7 +324,7 @@ ros2 run hybrid_voxel_map voxel_mapping_odom --ros-args \
 Terminal 2, start your semantic segmentation method:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 
 # Replace this with your own segmentation command.
 # Required behavior:
@@ -325,7 +340,7 @@ ros2 run your_semantic_package your_semantic_node --ros-args \
 Terminal 3, start the generic semantic adapter:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 [ -f ~/ros2_ws/install/setup.bash ] && source ~/ros2_ws/install/setup.bash
 source ~/slam_ws/install/setup.bash
 
@@ -347,10 +362,20 @@ The MCD label IDs above are the mapping used in our experiments. You may adjust 
 Terminal 4, play the MCD PointCloud2 bag:
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 [ -f ~/ros2_ws/install/setup.bash ] && source ~/ros2_ws/install/setup.bash
 ros2 bag play /path/to/ntu_day_10_mid70_vn100_body_pointcloud2_ros2 --read-ahead-queue-size 10000
 ```
+
+### 4.5 Hilti-Oxford 2022
+
+Use an already converted ROS 2 bag containing `/hesai/pandar` and `/alphasense/imu`. The adapter preserves point timestamps and transforms the LiDAR points into the IMU frame. Playback runs at 1x.
+
+```bash
+ros2 run hybrid_voxel_map run_hilti2022.py /path/to/ros2_bag --output ~/hvm_results/hilti2022
+```
+
+Configure `mapping.gaussian_neighbor_search` and `noise_model.use_calibrated_imu_noise` in `config/hilti2022.yaml` (both default to `true`). Noise calibration uses the first two seconds of stationary IMU data; disable it to use the configured noise values instead.
 
 ## 5. How the Example Bags Were Converted
 
@@ -384,7 +409,7 @@ The MCD bag was generated from the original Mid-70 LiDAR and VN100 IMU data. The
 
 Compared with the original ROS 1 implementation, this ROS 2 version includes several practical updates:
 
-- ROS 2 Humble / ament build support.
+- ROS 2 Jazzy / ament build support.
 - `livox_ros_driver2` support for Livox `CustomMsg`.
 - KITTI / SemanticKITTI sequence support through `PointCloud2`.
 - A constant-velocity fallback path for datasets without IMU, such as KITTI odometry.

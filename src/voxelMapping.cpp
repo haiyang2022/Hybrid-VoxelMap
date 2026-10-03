@@ -1,6 +1,7 @@
 #include "IMU_Processing.hpp"
 #include "preprocess.h"
 #include "voxelmapplus_util.hpp"
+#include <stdexcept>
 #include <Eigen/Core>
 #include <algorithm>
 #include <array>
@@ -343,7 +344,8 @@ void initDebugCsv()
         << "update_rejected,"
         << "semantic_plane,semantic_gaussian,semantic_object,"
         << "map_total,map_unknown,map_sem1,map_sem2,map_sem3,map_plane,map_ndt,"
-        << "undistort_ms,downsample_ms,cov_ms,scan_match_ms,solve_ms,map_update_ms,total_ms\n";
+        << "undistort_ms,downsample_ms,cov_ms,scan_match_ms,solve_ms,map_update_ms,total_ms,"
+        << "velocity_norm,gyro_bias_norm,acc_bias_norm,gravity_norm,cov_min_eigenvalue\n";
     debug_iter_csv
         << "scan_idx,iter,lidar_end,pv_points,effect_points,plane_residuals,ndt_residuals,"
         << "res_abs,res_signed,res_p50,res_p95,res_p99,plane_abs,ndt_abs,"
@@ -442,6 +444,7 @@ int iterCount, NUM_MAX_ITERATIONS, effct_feat_num, time_log_counter, publish_cou
 double NUM_MAX_DISTANCE = 0;
 double first_lidar_time = 0;
 double lidar_end_time = 0;
+size_t received_lidar_messages = 0;
 double res_mean_last = 0.05;
 double total_distance = 0;
 double gyr_cov_scale, acc_cov_scale;
@@ -763,6 +766,7 @@ void RGBpointBodyToWorld(PointType const *const pi, PointType *const po)
 
 void standard_pcl_cbk(const PointCloud2Msg::ConstSharedPtr &msg)
 {
+    ++received_lidar_messages;
     mtx_buffer.lock();
     const double msg_time = stampSec(msg->header.stamp);
     if (msg_time < last_timestamp_lidar)
@@ -783,6 +787,7 @@ void standard_pcl_cbk(const PointCloud2Msg::ConstSharedPtr &msg)
 #ifdef HAVE_LIVOX_ROS_DRIVER2
 void livox_pcl_cbk(const LivoxCustomMsg::ConstSharedPtr &msg)
 {
+    ++received_lidar_messages;
     mtx_buffer.lock();
     const double msg_time = stampSec(msg->header.stamp);
     if (msg_time < last_timestamp_lidar)
@@ -868,13 +873,10 @@ bool sync_packages(MeasureGroup &meas)
     }
 
     /*** push imu data, and pop from imu buffer ***/
-    double imu_time = stampSec(imu_buffer.front()->header.stamp);
     meas.imu.clear();
-    while ((!imu_buffer.empty()) && (imu_time < lidar_end_time))
+    // Retain the first IMU sample after scan end.
+    while (!imu_buffer.empty() && stampSec(imu_buffer.front()->header.stamp) <= lidar_end_time)
     {
-        imu_time = stampSec(imu_buffer.front()->header.stamp);
-        if (imu_time > lidar_end_time + 0.02)
-            break;
         meas.imu.push_back(imu_buffer.front());
         imu_buffer.pop_front();
     }
@@ -1337,8 +1339,22 @@ int main(int argc, char **argv)
     declareAndGet<double>("noise_model.angle_cov", angle_cov, 0.05);
     declareAndGet<double>("noise_model.gyr_cov_scale", gyr_cov_scale, 0.1);
     declareAndGet<double>("noise_model.acc_cov_scale", acc_cov_scale, 0.1);
+    bool use_calibrated_imu_noise = true;
+    double calibrated_gyr_cov_scale = gyr_cov_scale;
+    double calibrated_acc_cov_scale = acc_cov_scale;
+    declareAndGet<bool>("noise_model.use_calibrated_imu_noise", use_calibrated_imu_noise, true);
+    declareAndGet<double>("noise_model.calibrated_gyr_cov_scale", calibrated_gyr_cov_scale, gyr_cov_scale);
+    declareAndGet<double>("noise_model.calibrated_acc_cov_scale", calibrated_acc_cov_scale, acc_cov_scale);
+    if (use_calibrated_imu_noise)
+    {
+        if (!std::isfinite(calibrated_gyr_cov_scale) || calibrated_gyr_cov_scale <= 0.0 ||
+            !std::isfinite(calibrated_acc_cov_scale) || calibrated_acc_cov_scale <= 0.0)
+            throw std::invalid_argument("Calibrated IMU noise variances must be positive and finite");
+        gyr_cov_scale = calibrated_gyr_cov_scale;
+        acc_cov_scale = calibrated_acc_cov_scale;
+    }
 
-    // imu params, current version does not support imu
+    // imu params
     declareAndGet<bool>("imu.imu_en", imu_en, false);
     declareAndGet<bool>("imu.use_lidar_constant_velocity", use_lidar_constant_velocity, true);
     declareAndGet<bool>("imu.use_lidar_constant_velocity_deskew", use_lidar_constant_velocity_deskew, true);
@@ -1346,6 +1362,8 @@ int main(int argc, char **argv)
     declareAndGet<vector<double>>("imu.extrinsic_R", extrinR, vector<double>{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
 
     // mapping algorithm params
+    declareAndGet<bool>("mapping.gaussian_neighbor_search", gaussian_neighbor_search, true);
+    declareAndGet<bool>("mapping.gaussian_uncertainty_gating", gaussian_uncertainty_gating, true);
     declareAndGet<int>("mapping.max_iteration", NUM_MAX_ITERATIONS, 4);
     declareAndGet<double>("mapping.max_distance", NUM_MAX_DISTANCE, 80.0);
     declareAndGet<int>("mapping.update_size_threshold", update_size_threshold, 5);
@@ -1488,7 +1506,10 @@ int main(int argc, char **argv)
     rclcpp::Subscription<ImuMsg>::SharedPtr sub_imu;
     if (imu_en)
     {
-        const rclcpp::QoS imu_qos = rclcpp::SensorDataQoS().keep_last(imu_qos_depth);
+        bool reliable_imu_qos = false;
+        declareAndGet<bool>("common.reliable_imu_qos", reliable_imu_qos, false);
+        rclcpp::QoS imu_qos = rclcpp::SensorDataQoS().keep_last(imu_qos_depth);
+        if (reliable_imu_qos) imu_qos.reliable();
         sub_imu = g_node->create_subscription<ImuMsg>(imu_topic, imu_qos, imu_cbk);
     }
 
@@ -1704,9 +1725,10 @@ int main(int argc, char **argv)
                     point_this += Lidar_offset_to_IMU;
                     M3D point_crossmat;
                     point_crossmat << SKEW_SYM_MATRX(point_this);
+                    const M3D rotation_jacobian = -state.rot_end * point_crossmat;
                     cov = state.rot_end * cov * state.rot_end.transpose() +
-                          (-point_crossmat) * state.cov.block<3, 3>(0, 0) *
-                              (-point_crossmat).transpose() +
+                          rotation_jacobian * state.cov.block<3, 3>(0, 0) *
+                              rotation_jacobian.transpose() +
                           state.cov.block<3, 3>(3, 3);
                     pv.cov = cov;
                     pv_list.push_back(pv);
@@ -1854,8 +1876,9 @@ int main(int argc, char **argv)
                     }
                     M3D cov = body_var[i];
                     M3D point_crossmat = crossmat_list[i];
+                    const M3D rotation_jacobian = -state.rot_end * point_crossmat;
                     cov = state.rot_end * cov * state.rot_end.transpose() +
-                          (-point_crossmat) * rot_var * (-point_crossmat.transpose()) + t_var;
+                          rotation_jacobian * rot_var * rotation_jacobian.transpose() + t_var;
                     pv.cov = cov;
                     pv_list.push_back(pv);
                 }
@@ -2006,7 +2029,8 @@ int main(int argc, char **argv)
                     {
                         Eigen::Matrix<double, 1, 3> J_p = ptpl_list[i].J_T_NDT.transpose(); 
                         Eigen::Matrix<double, 1, 3> J_mu = (-1) * J_p;                      
-                        double sigma_p = J_p * cov * J_p.transpose();
+                        const M3D point_cov_world = state.rot_end * cov * state.rot_end.transpose();
+                        double sigma_p = J_p * point_cov_world * J_p.transpose();
                         double sigma_mu = J_mu * ptpl_list[i].cov_mu * J_mu.transpose();
                         double huber_delta = 0.3; 
                         double huber_weight = 1.0;
@@ -2240,9 +2264,10 @@ int main(int argc, char **argv)
                 }
                 M3D point_crossmat = crossmat_list[i];
                 M3D cov = body_var[i];
+                const M3D rotation_jacobian = -state.rot_end * point_crossmat;
                 cov = state.rot_end * cov * state.rot_end.transpose() +
-                      (-point_crossmat) * state.cov.block<3, 3>(0, 0) *
-                          (-point_crossmat).transpose() +
+                      rotation_jacobian * state.cov.block<3, 3>(0, 0) *
+                          rotation_jacobian.transpose() +
                       state.cov.block<3, 3>(3, 3);
                 pv.cov = cov;
                 pv_list.push_back(pv);
@@ -2306,7 +2331,12 @@ int main(int argc, char **argv)
                     << map_stats.semantic3 << "," << map_stats.plane << "," << map_stats.ndt << ","
                     << undistort_time << "," << t_downsample << "," << calc_point_cov_time << ","
                     << scan_match_time << "," << solve_time << "," << map_incremental_time << ","
-                    << total_time << "\n";
+                    << total_time << "," << state.vel_end.norm() << ","
+                    << state.bias_g.norm() << "," << state.bias_a.norm() << ","
+                    << state.gravity.norm() << ","
+                    << Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, DIM_STATE, DIM_STATE>>(
+                        (0.5 * (state.cov + state.cov.transpose())).eval()).eigenvalues().minCoeff()
+                    << "\n";
                 debug_frame_csv.flush();
             }
 
@@ -2391,12 +2421,27 @@ int main(int argc, char **argv)
             std::this_thread::sleep_for(std::chrono::microseconds(200));
         }
     }
+    closeTumResultFile();
+    writeSlamEfficiencyReport();
+    closePerFrameEfficiencyFile();
+    std::cout << "INPUT_COUNTS lidar=" << received_lidar_messages
+              << " imu=" << publish_count << std::endl;
+    // Release ROS entities before shutting down the context.
+    g_tf_broadcaster.reset();
+    sub_pcl.reset();
+#ifdef HAVE_LIVOX_ROS_DRIVER2
+    sub_livox.reset();
+#endif
+    sub_imu.reset();
+    pubLaserCloudSurfFull.reset();
+    pubLaserCloudEffect.reset();
+    pubOdomAftMapped.reset();
+    pubPath.reset();
+    voxel_map_pub.reset();
+    g_node.reset();
     if (rclcpp::ok())
     {
         rclcpp::shutdown();
     }
-    closeTumResultFile();
-    writeSlamEfficiencyReport();
-    closePerFrameEfficiencyFile();
     return 0;
 }

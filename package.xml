@@ -2,16 +2,17 @@
 <package format="3">
   <name>hybrid_voxel_map</name>
   <version>1.0.0</version>
-  <description>LiDAR odometry and hybrid voxel map localization for ROS 2 Humble.</description>
+  <description>LiDAR odometry and hybrid voxel map localization for ROS 2 Jazzy.</description>
 
   <maintainer email="fuzhang@hku.hk">Fu Zhang</maintainer>
   <license>BSD</license>
   <author email="ycj1@connect.hku.hk">Chongjian Yuan</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+  <build_depend>rosidl_default_generators</build_depend>
 
   <depend>rclcpp</depend>
+  <depend>builtin_interfaces</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>sensor_msgs</depend>
@@ -21,12 +22,17 @@
   <depend>tf2</depend>
   <depend>tf2_geometry_msgs</depend>
   <depend>tf2_ros</depend>
+  <depend>eigen</depend>
+  <depend>libpcl-all-dev</depend>
 
-  <build_depend>rosidl_default_runtime</build_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
 
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>rosbag2_py</exec_depend>
+  <exec_depend>rosbag2_interfaces</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>rviz2</exec_depend>
 
   <member_of_group>rosidl_interface_packages</member_of_group>

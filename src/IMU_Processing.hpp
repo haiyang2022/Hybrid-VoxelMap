@@ -107,6 +107,7 @@ ImuProcess::ImuProcess()
 {
     imu_en = true;
     init_iter_num = 1;
+    time_last_scan_ = -1.0;
     cov_acc = V3D(0.1, 0.1, 0.1);
     cov_gyr = V3D(0.1, 0.1, 0.1);
     // old
@@ -136,6 +137,7 @@ void ImuProcess::Reset()
     start_timestamp_ = -1;
     init_iter_num = 1;
     v_imu_.clear();
+    time_last_scan_ = -1.0;
     IMUpose.clear();
     last_imu_.reset(new sensor_msgs::msg::Imu());
     cur_pcl_un_.reset(new PointCloudXYZI());
@@ -198,6 +200,10 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, StatesGroup &state_inout,
     // state_inout.rot_end = Lid_rot_to_IMU;
     state_inout.bias_g = mean_gyr;
     last_imu_ = meas.imu.back();
+    double max_offset_ms = 0.0;
+    for (const auto &point : meas.surf_lidar->points)
+        max_offset_ms = std::max(max_offset_ms, static_cast<double>(point.curvature));
+    time_last_scan_ = meas.lidar_beg_time + max_offset_ms / 1000.0;
 }
 
 void ImuProcess::UndistortPcl(const MeasureGroup &meas,
@@ -210,6 +216,9 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
     const double imu_beg_time = rclcpp::Time(v_imu.front()->header.stamp).seconds();
     const double imu_end_time = rclcpp::Time(v_imu.back()->header.stamp).seconds();
     const double &pcl_beg_time = meas.lidar_beg_time;
+    // The input state belongs to the previous scan end.
+    const double propagation_start = time_last_scan_ >= 0.0
+        ? time_last_scan_ : pcl_beg_time;
     /*** sort point clouds by offset time ***/
     surf_pcl_out = *(meas.surf_lidar);
     sort(surf_pcl_out.points.begin(), surf_pcl_out.points.end(), time_list);
@@ -217,7 +226,7 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
         pcl_beg_time + surf_pcl_out.points.back().curvature / double(1000);
     /*** Initialize IMU pose ***/
     IMUpose.clear();
-    IMUpose.push_back(set_pose6d(0.0, acc_s_last, angvel_last,
+    IMUpose.push_back(set_pose6d(propagation_start - pcl_beg_time, acc_s_last, angvel_last,
                                  state_inout.vel_end, state_inout.pos_end,
                                  state_inout.rot_end));
     /*** forward propagation at each imu point ***/
@@ -232,7 +241,7 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
         auto &&head = *(it_imu);
         auto &&tail = *(it_imu + 1);
 
-        if (rclcpp::Time(tail->header.stamp).seconds() < pcl_beg_time)
+        if (rclcpp::Time(tail->header.stamp).seconds() <= propagation_start)
         {
             continue;
         }
@@ -248,9 +257,9 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
         angvel_avr -= state_inout.bias_g;
         acc_avr = acc_avr * G_m_s2 / mean_acc.norm() - state_inout.bias_a;
 
-        if (rclcpp::Time(head->header.stamp).seconds() < pcl_beg_time)
+        if (rclcpp::Time(head->header.stamp).seconds() < propagation_start)
         {
-            dt = rclcpp::Time(tail->header.stamp).seconds() - pcl_beg_time;
+            dt = rclcpp::Time(tail->header.stamp).seconds() - propagation_start;
         }
         else
         {
@@ -300,6 +309,7 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas,
     state_inout.rot_end = R_imu * Exp(V3D(note * angvel_avr), dt);
     state_inout.pos_end =
         pos_imu + note * vel_imu * dt + note * 0.5 * acc_imu * dt * dt;
+    time_last_scan_ = pcl_end_time;
 
     auto pos_liD_e =
         state_inout.pos_end + state_inout.rot_end * Lid_offset_to_IMU;

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 project(hybrid_voxel_map)
 
 set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(-O3 -pthread -fexceptions)
@@ -35,6 +35,7 @@ message(STATUS "OpenMP residual matching threads: ${PROC_NUM}")
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -96,6 +97,7 @@ endif()
 
 ament_target_dependencies(voxel_mapping_odom
   rclcpp
+  builtin_interfaces
   geometry_msgs
   nav_msgs
   sensor_msgs
@@ -145,6 +147,9 @@ if(livox_ros_driver2_FOUND)
 endif()
 install(PROGRAMS
   scripts/kitti_sequence_publisher.py
+  scripts/hilti2022_cloud_bridge.py
+  scripts/hilti2022_playback_ready.py
+  scripts/run_hilti2022.py
   scripts/generic_semantic_field_bridge.py
   scripts/salsanext_semantic_ros2_node.py
   scripts/salsanext_mcd_livox_semantic_ros2_node.py
