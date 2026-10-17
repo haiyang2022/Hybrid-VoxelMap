@@ -107,9 +107,10 @@ def generate_launch_description():
         DeclareLaunchArgument("kitti_vertical_filter", default_value="false"),
         DeclareLaunchArgument("blind", default_value="0.5"),
         DeclareLaunchArgument("point_filter_num", default_value="1"),
-        DeclareLaunchArgument("publish_point_time", default_value="true"),
+        # KITTI Odometry scans are already motion-compensated; do not synthesize point times.
+        DeclareLaunchArgument("publish_point_time", default_value="false"),
         DeclareLaunchArgument("use_lidar_constant_velocity", default_value="true"),
-        DeclareLaunchArgument("use_lidar_constant_velocity_deskew", default_value="true"),
+        DeclareLaunchArgument("use_lidar_constant_velocity_deskew", default_value="false"),
         DeclareLaunchArgument("publish_iteration_debug", default_value="false"),
         DeclareLaunchArgument("semantic_debug", default_value="false"),
         DeclareLaunchArgument("semantic_debug_interval", default_value="100"),

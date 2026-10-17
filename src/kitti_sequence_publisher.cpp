@@ -207,7 +207,8 @@ public:
         qos_depth_ = static_cast<int>(this->declare_parameter<int>("qos_depth", 512));
         qos_depth_ = std::max(1, qos_depth_);
         wait_for_subscriber_ = this->declare_parameter<bool>("wait_for_subscriber", true);
-        publish_point_time_ = this->declare_parameter<bool>("publish_point_time", true);
+        // KITTI Odometry scans are already motion-compensated and have no raw point timestamps.
+        publish_point_time_ = this->declare_parameter<bool>("publish_point_time", false);
         publish_gt_semantics_ = this->declare_parameter<bool>("publish_gt_semantics", false);
         label_dir_ = this->declare_parameter<std::string>("label_dir", "");
         log_semantic_stats_ = this->declare_parameter<bool>("log_semantic_stats", true);
@@ -418,7 +419,7 @@ private:
     double rate_ = 10.0;
     bool loop_ = false;
     bool wait_for_subscriber_ = true;
-    bool publish_point_time_ = true;
+    bool publish_point_time_ = false;
     bool publish_gt_semantics_ = false;
     bool log_semantic_stats_ = true;
     bool started_ = false;

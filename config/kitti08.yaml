@@ -53,7 +53,8 @@ voxel_mapping_odom:
     imu:
       imu_en: false
       use_lidar_constant_velocity: true
-      use_lidar_constant_velocity_deskew: true
+      # KITTI Odometry scans are already motion-compensated.
+      use_lidar_constant_velocity_deskew: false
       extrinsic_T: [0.0, 0.0, 0.0]
       extrinsic_R: [1.0, 0.0, 0.0,
                     0.0, 1.0, 0.0,
